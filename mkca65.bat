@@ -1,0 +1,1 @@
+cl65 -m map.txt -t cx16 -C src\bbcbas.cfg --bin-include-dir roms -o bbcbasic.bin src\basicbin.s src\init.s src\mos.s

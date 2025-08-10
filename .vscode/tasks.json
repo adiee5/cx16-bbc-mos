@@ -1,0 +1,19 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": ".${pathSeparator}mkca65.bat",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "RUN assebled cart",
+            "type": "shell",
+            "command": ".${pathSeparator}runcx16.bat"
+        }
+    ]
+}

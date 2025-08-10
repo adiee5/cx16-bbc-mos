@@ -1,0 +1,7 @@
+*.o
+nongit
+map.txt
+bbcbasic.*
+basic4lo.bin
+basic4hi.bin
+basic4hi.bin.bak
