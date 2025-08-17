@@ -202,7 +202,6 @@ osBYTE:
             pla
             rts
         color:
-            stx bytevar
             pla
             sta vdubuff
             and #$0F
@@ -213,19 +212,21 @@ osBYTE:
             stz vdustate
             rts
         @bg:
-            tax
-            lda #1
-            jsrfar KERNAL_CHROUT, 0
-            lda colorchr, x
-            jsrfar KERNAL_CHROUT, 0
-            lda #1
-            jsrfar KERNAL_CHROUT, 0
+            asl
+            asl
+            asl
+            asl
+            pha
+            lda #$0F
             bra :+
         @fore:
-            tax
-            lda colorchr, x
-            jsrfar KERNAL_CHROUT, 0
-        :   ldx bytevar
+            pha
+            lda #$F0
+        :   and KERNAL_IV_COLOR
+            sta KERNAL_IV_COLOR
+            pla
+            ora KERNAL_IV_COLOR
+            sta KERNAL_IV_COLOR
             lda vdubuff
             stz vdustate
             rts
@@ -299,6 +300,7 @@ chrinhelper:
 jsrfarsub:
     .include "jsrfar.inc"
 
+    ; TODO: Handle CPU differences!!!
     .export BRKHandler
 BRKHandler:
     lda #33

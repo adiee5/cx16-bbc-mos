@@ -14,6 +14,9 @@ KERNAL_CHRIN  = $FFCF
 KERNAL_MEMBOT = $FF9C
 KERNAL_MEMTOP = $FF99
 
+; Internal KERNAL variables that are statically allocated. we use them to increase speed and control
+KERNAL_IV_COLOR = $0376
+
 .macro jsrfar addr, bank
     jsr jsrfarsub
     .addr addr
