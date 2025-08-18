@@ -17,22 +17,8 @@ vdustate:   .byte 0
 
 .segment "MOS"
 
-osCLI:
-    ldx #0
-@lp:
-    lda colorchr, X
-    beq @end
-    jsrfar KERNAL_CHROUT, 0
-    lda #$80
-    jsrfar KERNAL_CHROUT, 0
-    lda #$9f
-    jsrfar KERNAL_CHROUT, 0
-    inx
-    cmp #16
-    bne @lp
-@end:
-
 osWORD:
+    ; TODO: support for >80 chars
         stx LPTR
         sty LPTR+1
         cmp #0
@@ -81,10 +67,28 @@ NullReturn: ; reuses already existing RTS
         rts
 
 osBYTE:
+        CMP #$00
+        BEQ @byte00
+        CMP #$81
+        BEQ @byte81
         CMP #$7E
         BNE @mem       ; Ack. Escape
         STA ESCFLG
         RTS
+    @byte00:
+        ; returns device/path type
+        LDX #28        ; %xx0x1xxx
+        RTS
+    @byte81:
+        PHA
+        TYA
+        BPL @exit    ; INKEY(nn) unsupported
+        TXA
+        BNE @exit    ; INKEY-keynum unsupported
+        TAY
+        LDX #$CC    ; INKEY-256=&CC = CX16
+        pla
+        rts
     @mem:
         pha
         CMP #$84
@@ -93,7 +97,8 @@ osBYTE:
         CMP #$83
         BCC @exit
         jsrfar KERNAL_MEMBOT, 0
-        bra @exit
+        pla
+        rts
     @top:
         jsrfar KERNAL_MEMTOP, 0
     @exit:
@@ -101,6 +106,7 @@ osBYTE:
         RTS
 ;
 
+; TODO: swallow all long codes
     .export osWRCH
 .proc osWRCH
         pha
@@ -181,17 +187,11 @@ osBYTE:
         vdu20:
             pha
             jsrfar loaddefpalette, 32
-            ldx #0
-            :
-            lda @b, X
-            jsrfar KERNAL_CHROUT, 0
-            inx
-            cpx #3
-            bcc :-
+            lda #$07
+            sta KERNAL_IV_COLOR
             ldx bytevar
             pla
             rts
-            @b: .byte $90, 1, $9e
     .endproc
     .proc longcodes
             cmp #17
@@ -244,11 +244,6 @@ osBYTE:
         .addr codes::unimp, codes::unimp, codes::home, codes::unimp ;1C-1F
 .endproc
 
-colorchr:
-    .byt $90,$05,$1c,$9f,$9c,$1e,$1f,$9e
-    .byt $81,$95,$96,$97,$98,$99,$9a,$9b
-
-
 .segment "RAMMOS"
 
 chrinhelper:
@@ -300,7 +295,6 @@ chrinhelper:
 jsrfarsub:
     .include "jsrfar.inc"
 
-    ; TODO: Handle CPU differences!!!
     .export BRKHandler
 BRKHandler:
         lda #33
@@ -338,7 +332,9 @@ BRKHandler:
         xba ; becuse of that, we need to retreive it in this specific way
         pla
         xba
-        bra @exit
+    @exit:
+        CLI
+        JMP (BRKV) ; After this point, user only needs to RTI
     .popcpu
     @8bit:
         phx
@@ -355,9 +351,7 @@ BRKHandler:
 
         plx
         pla ; actual A reg
-    @exit:
-        CLI
-        JMP (BRKV) ; After this point, user only needs to RTI
+        bra @exit
 ;
 
 .export NullRTI
