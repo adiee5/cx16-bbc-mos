@@ -303,28 +303,61 @@ jsrfarsub:
     ; TODO: Handle CPU differences!!!
     .export BRKHandler
 BRKHandler:
-    lda #33
-    sta rom_bank
-    ; Get address from stack
-    LDA $010A,X ; X is already stackptr. 
+        lda #33
+        sta rom_bank
+
     ; LET'S REALLY HOPE that cx16 irqsetup code doesn't change (this stack order remained since R44)
     ; (alternatively replace the KERNAL code in RAM with something else)
-    SEC
-    SBC #$01
-    STA FAULT+0
-    LDA $010B,X
-    SBC #$00
-    STA FAULT+1       ; $FD/E=>after BRK opcode
-    ply
-    plx
-    pla ; pseudo push
-    plp ; neo plp
-    pla ; neo return #<
-    pla ; neo return #>
-    pla ; rom bank
-    pla ; actual A reg
-    CLI
-    JMP (BRKV) ; After this point, user only needs to RTI
+        ply
+        plx
+        pla ; pseudo push
+        plp ; neo plp
+        pla ; neo return #<
+        pla ; neo return #>
+        pla ; rom bank
+    .pushcpu
+    .setcpu "65816"
+        ; At this point, stack has completely different contents
+        ; depending on CPU type. 
+        clc
+        sep #1
+        bcc @8bit
+
+        lda 7, S
+        sec
+        SBC #1
+        STA FAULT+0
+        LDA 8, S
+        SBC #0
+        STA FAULT+1       ; $FD/E=>after BRK opcode
+
+        pla ; 816 "Data Bank"
+        pla ; Zero Page reloc
+
+        pla ; the IRQ setup preserves A reg in a rather strange way
+        xba ; becuse of that, we need to retreive it in this specific way
+        pla
+        xba
+        bra @exit
+    .popcpu
+    @8bit:
+        phx
+        tsx
+
+        ; Get address from stack
+        LDA $0104,X
+        SEC
+        SBC #$01
+        STA FAULT+0
+        LDA $0105,X
+        SBC #$00
+        STA FAULT+1       ; $FD/E=>after BRK opcode
+
+        plx
+        pla ; actual A reg
+    @exit:
+        CLI
+        JMP (BRKV) ; After this point, user only needs to RTI
 ;
 
 .export NullRTI
