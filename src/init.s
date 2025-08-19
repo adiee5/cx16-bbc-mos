@@ -97,9 +97,29 @@ copypages:
 introprintlp:
     lda introtxt, X
     beq @end
-    jsrfar $FFD2, 0
+    jsrfar KERNAL_CHROUT, 0
     inx
     bne introprintlp
+@end:
+    phx
+
+    ; There apparently is a spec that says, that the Name of the Language ROM is placed in this address
+    ; TODO: Parse&Print version number
+    ldx #0
+langnameprintlp:
+    lda $B809, X
+    beq @end
+    jsrfar KERNAL_CHROUT, 0
+    inx
+    bne langnameprintlp
+@end:
+    plx
+capsinfprintlp:
+    inx
+    lda introtxt, X
+    beq @end
+    jsrfar KERNAL_CHROUT, 0
+    bra capsinfprintlp
 @end:
 
     lda #1
@@ -125,8 +145,17 @@ loaddefpalette:
     rts
 
 introtxt:
-    .byte $90, 1, $9e, $0F, 13, "BBC BASIC IV Commander X16 edition", 13
-    .byte "Press Caps-Lock for the most optimal coding experience", 13, 13, 0
+    @epoch = .time
+    ; Aproximate time. I won't bother creating a more accurate code for printing compilation date
+    @year = @epoch/60/60/24/365+1970
+    @dayspast = (@epoch/60/60/24-(@year-1970)*365)
+    @month = (@dayspast/30) .mod 12 +1
+    .byte $90, 1, $9e, $0F, 13, "BBC MOS Commander X16 edition.", " Compiled around ", .sprintf("%04i-%02i", @year, @month)
+    .byte 13, "Language: ", 0
+    .byte 13, "Press Caps-Lock for the most optimal coding experience", 13, 13, 0
+    .assert *-introtxt<256, warning, "introtxt too long. the message won't print correctly"
+    ; big endian 40-bit unix epoch
+    .byte @epoch>>32, @epoch>>24, ^@epoch, >@epoch, <@epoch 
 
 defpalette:
     .word $0000, $0C00, $00C0, $0CC0, $000C, $0C0C, $00CC, $0CCC
