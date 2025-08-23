@@ -244,6 +244,82 @@ osBYTE:
         .addr codes::unimp, codes::unimp, codes::home, codes::unimp ;1C-1F
 .endproc
 
+.proc osFILE
+        stx LPTR
+        sty LPTR+1
+        cmp #$FF ; We only accept LOAD
+        beq load
+        rts
+    load:
+        jsr _setname
+
+        ldx #8 ; we don't bother handling other disks yet
+
+        ; do we need to change A at all?
+
+        ldy #2 ; most of the example BBC BASIC programs online are delivered in normal PC format instead of the Commodore one.
+               ; HOWEVER, it seems like there is an API in MOS for loading files at file-desired addresses. BBC BASIC doesn't 
+               ; seem to use this API though, therefore we can blessfully ignore it for now. But if we ever want to support 
+               ; that, we WILL need to rely on Commodore file address headers.
+        
+        jsrfar KERNAL_SETLFS, 0
+
+        ; we ignore high address bytes, because we don't know if and how high addresses should be handled on CX16
+        ldy #2
+        lda (LPTR), y
+        tax
+        iny
+        lda (LPTR), y
+        tay
+        lda #0
+        jsrfar KERNAL_LOAD, 0
+
+        bcc :+
+        brk #$D6
+        .asciiz "LOAD error"
+    :   phy
+        ldy #2
+        txa
+        sec
+        sbc (LPTR), y
+        tax
+        pla
+        iny
+        sbc (LPTR), y
+        ldy #$B
+        sta (LPTR), y
+        dey
+        txa
+        sta (LPTR), y
+        lda #1
+        rts
+
+    _setname:
+        phy
+        phx
+        ldy #1
+        lda (LPTR), y
+        tay
+        lda (LPTR)
+        sta LPTR
+        sty LPTR+1
+        ldy #$FF
+    @namelenloop:
+        iny
+        lda (LPTR), y
+        cmp #$0D ; Yes, for some reason filenames here end with CR
+        bne @namelenloop
+        tya
+        ldx LPTR
+        ldy LPTR+1
+        jsrfar KERNAL_SETNAM, 0
+        plx
+        ply
+
+        stx LPTR
+        sty LPTR+1
+.endproc
+
 .segment "RAMMOS"
 
 chrinhelper:
@@ -391,7 +467,7 @@ NullRTI:
         jmp NullReturn
         jmp NullReturn
         jmp NullReturn
-        jmp NullReturn
+        jmp osFILE      ; extapi for "Absolute" file IO functions (save, load etc.)
         jmp NullReturn  ; GETIN
         cmp #$0D        ; OSASCI. On CX16 platform, these different WRCH wrappers don't do much, as $0A is ignored by CHROUT
         bne OSWRCH
