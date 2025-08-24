@@ -5,9 +5,9 @@
 
 .zeropage
 LPTR: .res 2
+bytevar:    .res 1
 
 .bss
-bytevar:    .res 1
 tmpflag:    .res 1
 vdulen:     .res 1
 vdubuff:    .res 9
@@ -56,7 +56,7 @@ osWORD:
         sta (LPTR), y
         cmp #$0D
         bne :+
-        jsr osWRCH ; Duck tape
+        jsrfar KERNAL_CHROUT, 0 ; Duck tape
         lsr tmpflag
         rts
     :   cpy bytevar ; we can't really block the movement of the cursor in kernal CHRIN, so instead we just cut the input.
@@ -106,9 +106,16 @@ osBYTE:
         RTS
 ;
 
-; TODO: swallow all long codes
     .export osWRCH
-.proc osWRCH
+osWRCH: ; preserves the regs before going to actual OSWRCH code, so that the code can be simpler
+    sta bytevar
+    phx
+    jsr VDUOUT
+    lda bytevar
+    plx
+    rts
+
+.proc VDUOUT
         pha
         lda vdustate
         beq :+
@@ -129,28 +136,21 @@ osBYTE:
     :   jsrfar KERNAL_CHROUT, 0
         rts
     del:
-        pha
         lda #$14
         jsrfar KERNAL_CHROUT, 0
-        pla
         rts
     .proc codes
             stz vdulen
-            stx bytevar
-            pha
             asl a
             tax
-            pla
+            lda bytevar
             jmp (codebh, X)
         null:
-            ldx bytevar
             rts
         pass: ; let KERNAL handle it
-            ldx bytevar
             jsrfar KERNAL_CHROUT, 0 
             rts
         unimp: ; visual output, that there was some code sent, but our MOS doesn't support it yet
-            ldx bytevar
             pha
             lda #'@'
             jsrfar KERNAL_CHROUT, 0
@@ -159,57 +159,62 @@ osBYTE:
             pla
             jsrfar KERNAL_CHROUT, 0
             rts
+        vdu1:
+            lda #20 ; arbitrary value. we simply don't want to have 32 entry tables
         long: ; code with parameters. it will be handled at later passes
-            ldx bytevar
+            and #$0F
             sta vdustate
             rts
         vdu9:
-            ldx bytevar
-            pha
             lda #$1D
             jsrfar KERNAL_CHROUT, 0
-            pla
             rts
         vdu12:
-            ldx bytevar
-            pha
             lda #$93
             jsrfar KERNAL_CHROUT, 0
-            pla
             rts
         home:
-            ldx bytevar
-            pha
             lda #$13
             jsrfar KERNAL_CHROUT, 0
-            pla
             rts
         vdu20:
-            pha
             jsrfar loaddefpalette, 32
             lda #$07
             sta KERNAL_IV_COLOR
-            ldx bytevar
-            pla
             rts
     .endproc
     .proc longcodes
-            cmp #17
-            beq color
-            ;cmp #19
-            ;beq newcol
-            stz vdustate
+            ldx vdulen
             pla
+            sta vdubuff, x
+            inx
+            txa
+            ldx vdustate
+            cmp vdulentab-1, x ; X>0
+            bcs @ready
+            sta vdulen
             rts
+        @ready:
+            stz vdustate
+            txa
+            asl
+            tax
+            jmp (longbh-2, x) ; X>1
+        unimp:
+            lsr
+            cmp #4
+            bne :+
+            lda #1
+            bra codes::unimp
+        :   ora #$10
+            bra codes::unimp
         color:
-            pla
-            sta vdubuff
+            lda vdubuff
             and #$0F
             bit vdubuff
             bpl @fore
             bvc @bg
             sta $9F2C ; border color
-            stz vdustate
             rts
         @bg:
             asl
@@ -227,21 +232,28 @@ osBYTE:
             pla
             ora KERNAL_IV_COLOR
             sta KERNAL_IV_COLOR
-            lda vdubuff
-            stz vdustate
             rts
     .endproc
 
     ; table for quick behaviour determining
     codebh:
-        .addr codes::null, codes::unimp, codes::unimp, codes::unimp ;0-3
+        .addr codes::null,  codes::vdu1,  codes::unimp, codes::unimp;0-3
         .addr codes::unimp, codes::unimp, codes::unimp, codes::pass ;4-7
-        .addr codes::unimp, codes::vdu9, codes::null, codes::unimp  ;8-B
-        .addr codes::vdu12, codes::pass, codes::unimp, codes::unimp ;C-F
-        .addr codes::unimp, codes::long, codes::unimp, codes::unimp ;10-13
-        .addr codes::vdu20, codes::unimp, codes::unimp, codes::unimp;14-17
-        .addr codes::unimp, codes::unimp, codes::unimp, codes::null ;18-1B
-        .addr codes::unimp, codes::unimp, codes::home, codes::unimp ;1C-1F
+        .addr codes::unimp, codes::vdu9,  codes::null,  codes::unimp;8-B
+        .addr codes::vdu12, codes::pass,  codes::unimp, codes::unimp;C-F
+        .addr codes::unimp, codes::long,  codes::long,  codes::long ;10-13
+        .addr codes::vdu20, codes::unimp, codes::long,  codes::long ;14-17
+        .addr codes::long,  codes::long,  codes::unimp, codes::null ;18-1B
+        .addr codes::long,  codes::long,  codes::home,  codes::long ;1C-1F
+
+    vdulentab:
+        .byt 1, 2, 5, 1, 0, 1, 9, 8, 5, 0, 0, 4, 4, 0, 2
+
+    longbh:
+        .addr longcodes::color, longcodes::unimp, longcodes::unimp, longcodes::unimp
+        .addr longcodes::unimp, longcodes::unimp, longcodes::unimp, longcodes::unimp
+        .addr longcodes::unimp, longcodes::unimp, longcodes::unimp, longcodes::unimp
+        .addr longcodes::unimp, longcodes::unimp, longcodes::unimp
 .endproc
 
 .proc osFILE
