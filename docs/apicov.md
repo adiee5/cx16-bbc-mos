@@ -31,3 +31,6 @@ Unsupported VDU codes will generate a visual output that informs about an unsupp
 
 ## Vectors
 Currently, only `BRKV` and `WRCHV` are implemented, because BBC BASIC requires them to exist. Other ones may get implemented if they seem apropriate for this project. Some vectors, for example `USERV`, openly encourage relying on internal variables of Acorn MOS and therefore it's unsuited for CX16 MOS.
+
+## Miscellaneous
+Outside of the MOS calls, you can also call `JSRFAR` at its usual address. You can use it to call other CX16 KERNAL calls if needed.
